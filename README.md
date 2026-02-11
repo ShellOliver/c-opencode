@@ -1,24 +1,54 @@
-# Opencode AI Coding Agent Docker Setup
+# OpenCode Docker Setup with Server/Client Architecture
 
-This Docker configuration provides a secure, containerized environment for the opencode AI coding agent CLI tool.
+This Docker configuration provides a secure, containerized environment for the OpenCode AI coding agent using a **server/client architecture pattern**.
 
-## Key Principles
+## Architecture Overview
 
-- **Preserves host configuration**: opencode.json and MCP configs remain on host
-- **Preserves authentication**: Auth credentials are stored in host directories
-- **Security-focused**: Non-root user, minimal privileges
-- **Clean setup**: Simple bind mounts for configuration and repositories
-
-## Directory Structure
+### Server/Client Pattern
 
 ```
-opencode/
-├── docker-compose.yaml    # Service definition
-├── Dockerfile            # Container image definition
-├── .dockerignore         # Files excluded from build context
-├── README.md            # This file
-└── .gitignore           # Git ignore rules
+┌─────────────────────────────────────────────────────────────────┐
+│                        Local Host                              │
+│  ┌──────────────────┐         ┌──────────────────────────┐     │
+│  │  c-opencode.sh   │────────>│  HTTP Client (@opencode-  │     │
+│  │  (Local Wrapper) │  API    │   sdk)                   │     │
+│  └──────────────────┘         └──────────────────────────┘     │
+│                                         │                      │
+│                                         ▼                      │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                   Docker Container                       │  │
+│  │  ┌────────────────────────────────────────────────────┐  │  │
+│  │  │  OpenCode Server (opencode serve)                  │  │  │
+│  │  │  - Headless HTTP server on port 4096              │  │  │
+│  │  │  - Runs as non-root user                           │  │  │
+│  │  │  - Handles all AI agent operations                 │  │  │
+│  │  └────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│         ▲              ▲              ▲                        │
+│         │              │              │                        │
+│  ┌──────┴──────┐  ┌───┴──────┐  ┌───┴────────┐              │
+│  │ ~/.config/  │  │ ~/.local/│  │  ./workspace│              │
+│  │  opencode   │  │  share/  │  │   (project) │              │
+│  │   (ro)      │  │ opencode │  │   (rw)      │              │
+│  └─────────────┘  └──────────┘  └─────────────┘              │
 ```
+
+### Why This Approach?
+
+**Issue #12439**: The TUI has Docker issues. This server/client pattern solves:
+
+- ✅ **TUI independence**: Server runs headless, no terminal issues
+- ✅ **Client flexibility**: Any HTTP client can connect (Python, Node.js, curl, etc.)
+- ✅ **Security**: Server runs in isolated container with minimal privileges
+- ✅ **Configuration persistence**: Host configs mounted into container
+- ✅ **Multi-client support**: Multiple clients can connect simultaneously
+
+## Prerequisites
+
+- Docker (v20+)
+- Docker Compose (v2+)
+- Node.js 22+ (for local wrapper)
+- OpenCode API key configured on host
 
 ## Quick Start
 
@@ -28,172 +58,222 @@ opencode/
 docker-compose build
 ```
 
-### 2. Run opencode commands
+### 2. Start the server
 
 ```bash
-docker-compose run --rm opencode <command>
+docker-compose up -d
 ```
 
-Examples:
+### 3. Check server status
 
 ```bash
-# View help
-docker-compose run --rm opencode --help
-
-# Run with a specific task
-docker-compose run --rm opencode "analyze the codebase and identify potential security issues"
-
-# Interactive mode
-docker-compose run --rm opencode
+./c-opencode.sh status
 ```
 
-## Configuration
-
-### opencode.json
-
-Your opencode configuration file should be located at:
-- **Linux/Mac**: `~/.config/opencode/opencode.json`
-- **Windows**: `%APPDATA%\opencode\opencode.json`
-
-This directory is mounted into the container, preserving all your settings including MCP server configurations.
-
-### MCP Server Configuration
-
-MCP servers configured in your opencode.json are automatically available in the container because:
-- The `~/.config/opencode/` directory is bind-mounted
-- All MCP server definitions persist from host to container
-- No additional configuration needed
-
-### Authentication
-
-Authentication credentials are stored in `~/.local/share/opencode/` on the host and mounted into the container, ensuring your API keys and tokens remain secure on your host system.
-
-## Usage
-
-### Working with Projects
-
-The current directory is mounted as `/workspace` in the container:
+### 4. Use the wrapper
 
 ```bash
-# Run opencode on the current project
-docker-compose run --rm opencode "analyze this codebase"
+# Run a task
+./c-opencode.sh run "analyze this codebase"
 
-# Run with a specific project directory
-docker-compose run --rm opencode -d /workspace/path/to/project "do something"
+# List sessions
+./c-opencode.sh list-sessions
+
+# Start a new session
+./c-opencode.sh start myproject
+```
+
+## Directory Structure
+
+```
+opencode/
+├── Dockerfile           # Container image definition
+├── docker-compose.yaml  # Service definition
+├── .dockerignore        # Files excluded from build
+├── c-opencode.sh        # Local wrapper script
+├── README.md           # This file
+└── .gitignore          # Git ignore rules
+```
+
+## Configuration Mounting
+
+### Volume Mappings
+
+| Host Path | Container Path | Mode | Purpose |
+|-----------|----------------|------|---------|
+| `~/.config/opencode` | `/root/.config/opencode` | `ro` | Configuration files |
+| `~/.local/share/opencode` | `/root/.local/share/opencode` | `rw` | Cache and session data |
+| `./` (current dir) | `/workspace` | `rw` | Project workspace |
+
+### Configuration Preserved from Host
+
+- `opencode.json` - Main configuration with MCP servers
+- API keys and tokens in auth directory
+- Custom prompts and templates
+- MCP server configurations
+
+**Note**: Configuration remains on your host system, not in the container image.
+
+## Local Wrapper Usage
+
+The `c-opencode.sh` script provides a clean CLI interface:
+
+### Commands
+
+```bash
+# Check server health
+c-opencode.sh status
+
+# Run a prompt
+c-opencode.sh run "your prompt here"
+
+# List sessions
+c-opencode.sh list-sessions
+
+# Start a new session
+c-opencode.sh start [session-name]
 ```
 
 ### Environment Variables
 
-You can add environment variables in a `.env` file:
-
-```
-OPENAI_API_KEY=your-key-here
-ANTHROPIC_API_KEY=your-key-here
-```
-
-Or pass them directly:
+Create a `.env` file in the project root:
 
 ```bash
-docker-compose run --rm -e OPENAI_API_KEY=xxx opencode "task"
+# Server configuration (optional, defaults to 127.0.0.1:4096)
+OPENCODE_HOST=127.0.0.1
+OPENCODE_PORT=4096
+
+# Node environment
+NODE_ENV=production
 ```
 
-## Docker Compose Configuration
+## API Endpoints
 
-### Volumes
+The server exposes the following endpoints:
 
-- `./:/workspace` - Current project directory
-- `~/.config/opencode:/root/.config/opencode` - Configuration files
-- `~/.local/share/opencode:/root/.local/share/opencode` - Authentication data
+- `GET /health` - Health check
+- `POST /run` - Execute a prompt
+- `GET /sessions` - List sessions
+- `POST /sessions` - Create new session
+- `GET /sessions/{id}` - Get session details
 
-### User
+See the OpenCode API documentation for full details.
 
-Runs as non-root user `opencode` (UID 1000) for security.
+## Security Notes
 
-## Security Considerations
+### ✅ Security Features
 
-### ✅ Good Practices
+- Non-root user execution (UID 1000)
+- Server runs on localhost only (127.0.0.1)
+- No authentication built-in (relies on localhost isolation)
+- Configuration preserved from host (not copied into image)
+- Environment variables for sensitive data
 
-- Non-root user execution
-- No secrets baked into image
-- Configuration kept on host
--最小权限原则
+### 🔒 Best Practices
 
-### Recommendations
-
-1. **Never commit** `.env` files with secrets
-2. **Use `.env.example`** with placeholder values
-3. **Protect auth data** - the `~/.local/share/opencode` directory contains sensitive information
-4. **Restrict network access** - only allow necessary API endpoints
-5. **Regular updates** - keep base images and dependencies updated
+1. **Never expose port 4096 publicly** - Only bind to 127.0.0.1
+2. **Keep API keys secure** - Store in host `~/.local/share/opencode`
+3. **Don't commit secrets** - Use `.env` with placeholders
+4. **Regular updates** - Keep base images and dependencies updated
+5. **Network restrictions** - Use firewall rules if needed
 
 ### Security Checklist
 
 - [x] Non-root user
+- [x] Localhost-only binding
 - [x] No secrets in image
 - [x] Config mounted from host
 - [x] Auth data mounted from host
 - [x] Minimal base image
-- [ ] Network restrictions (configure based on needs)
-
-## Multi-Project Setup
-
-To use opencode with multiple projects:
-
-```bash
-# Project 1
-cd /path/to/project1
-docker-compose run --rm opencode "task for project 1"
-
-# Project 2
-cd /path/to/project2
-docker-compose run --rm opencode "task for project 2"
-```
-
-Each project uses the same configuration from your host.
 
 ## Troubleshooting
 
-### Permission Denied
-
-Ensure your opencode directories exist:
+### Server won't start
 
 ```bash
+# Check container logs
+docker-compose logs
+
+# Ensure directories exist
 mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
+
+# Check permissions
+ls -la ~/.config/opencode
+ls -la ~/.local/share/opencode
 ```
 
-### MCP Server Not Working
-
-Check that your `~/.config/opencode/opencode.json` contains valid MCP server configurations.
-
-### Build Errors
-
-Clean build cache:
+### Connection refused
 
 ```bash
+# Verify server is running
+docker-compose ps
+
+# Check if port is in use
+lsof -i :4096
+
+# Restart server
+docker-compose restart
+```
+
+### Permission denied
+
+```bash
+# Fix directory permissions
+sudo chown -R $(whoami) ~/.config/opencode
+sudo chown -R $(whoami) ~/.local/share/opencode
+```
+
+### Update issues
+
+```bash
+# Clean rebuild
+docker-compose down -v
 docker-compose build --no-cache
+docker-compose up -d
 ```
 
-## Customization
+## Development
 
-### Adding Dependencies
+### Build locally
 
-Modify the `Dockerfile` to add additional tools:
-
-```dockerfile
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+```bash
+docker build -t opencode .
 ```
 
-### Changing Base Image
+### Run interactively
 
-Edit the `FROM` instruction in `Dockerfile`:
-
-```dockerfile
-FROM node:22-alpine
+```bash
+docker run -it --rm \
+  -v ~/.config/opencode:/root/.config/opencode:ro \
+  -v ~/.local/share/opencode:/root/.local/share/opencode:rw \
+  -v $(pwd):/workspace:rw \
+  -p 127.0.0.1:4096:4096 \
+  opencode \
+  opencode serve --hostname 127.0.0.1 --port 4096
 ```
+
+### Test API manually
+
+```bash
+# Health check
+curl http://127.0.0.1:4096/health
+
+# Run a prompt
+curl -X POST http://127.0.0.1:4096/run \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "analyze this codebase"}'
+```
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
 
 ## License
 

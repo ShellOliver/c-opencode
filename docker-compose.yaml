@@ -1,26 +1,24 @@
 version: '3.8'
 
-x-opencode-variables: &opencode-variables
-  NODE_ENV: production
-  PATH: /root/.npm-global/bin:${PATH}
-
 services:
-  opencode:
+  opencode-server:
     build:
       context: .
       dockerfile: Dockerfile
     image: opencode:latest
-    container_name: opencode
-    stdin_open: true
-    tty: true
+    container_name: opencode-server
+    ports:
+      - "127.0.0.1:4096:4096"
     volumes:
-      # Mount current directory as workspace
-      - .:/workspace:ro
-      # Mount opencode configuration directory
+      # Mount host configuration (read-only)
       - ${HOME}/.config/opencode:/root/.config/opencode:ro
-      # Mount opencode authentication data directory
-      - ${HOME}/.local/share/opencode:/root/.local/share/opencode
-    user: "1000:1000"
-    environment: *opencode-variables
-    entrypoint: ["opencode"]
-    command: []
+      # Mount local data directory (read-write for cache/sessions)
+      - ${HOME}/.local/share/opencode:/root/.local/share/opencode:rw
+      # Mount current directory as workspace
+      - .:/workspace:rw
+    environment:
+      - NODE_ENV=production
+      - OPENCODE_HOST=127.0.0.1
+      - OPENCODE_PORT=4096
+    restart: unless-stopped
+    entrypoint: ["opencode", "serve", "--hostname", "127.0.0.1", "--port", "4096"]

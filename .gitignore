@@ -2,7 +2,11 @@
 node_modules
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
+pnpm-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Environment files
 .env
@@ -14,6 +18,7 @@ pnpm-lock.yaml
 .vscode
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
@@ -32,3 +37,39 @@ build
 .cache
 temp
 tmp
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+c-opencode.sh
+
+# Git (should not be in docker context)
+.git
+.gitignore
+
+# Documentation
+README.md
+CHANGELOG.md
+
+# Test files
+test
+tests
+__tests__
+*.test.js
+*.spec.js
+
+# Coverage
+coverage
+
+# Lock files
+pnpm-lock.yaml
+
+# Config files (using host configs via volume mounts)
+opencode.json
+*.json
+
+# Build artifacts
+out
+bin
+obj
