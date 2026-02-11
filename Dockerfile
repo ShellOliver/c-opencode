@@ -20,17 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /workspace
 
-# Create non-root user for security
-RUN groupadd -g 1000 opencode && \
-    useradd -u 1000 -g opencode -d /workspace -s /bin/bash opencode && \
-    chown -R opencode:opencode /workspace
-
-# Switch to non-root user
-USER opencode
+# Use the existing node user (UID 1000, GID 1000) instead of creating a duplicate
+USER node
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PATH="/home/opencode/.local/bin:${PATH}"
+ENV HOME=/home/node
+ENV PATH="$HOME/.local/bin:${PATH}"
 
 # Expose the opencode server port
 EXPOSE 4096
