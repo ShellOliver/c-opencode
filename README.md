@@ -1,6 +1,32 @@
 # OpenCode Docker Setup with Server/Client Architecture
 
-This Docker configuration provides a secure, containerized environment for the OpenCode AI coding agent using a **server/client architecture pattern**.
+ This Docker configuration provides a secure, containerized environment for the OpenCode AI coding agent using a **server/client architecture pattern**.
+
+## Dynamic Port Allocation (Multi-Project Support)
+
+When managing **multiple projects**, each project folder gets its own container with a dynamically allocated port (4100-4999). This enables running parallel instances for different projects.
+
+### How It Works
+
+- **Automatic Port Assignment**: First run finds available port starting from 4100
+- **Port Persistence**: Port stored in `.opencode-port` file (gitignored)
+- **Container Reuse**: Same container reused in multiple terminals for same project
+- **Multi-Project**: Different project folders use different ports independently
+
+### Quick Start for Multiple Projects
+
+```bash
+cd /path/to/project1
+./c-opencode.sh start
+
+cd /path/to/project2
+./c-opencode.sh start
+
+# Each project now runs on different port (e.g., 4100, 4101)
+# Check status and run commands independently
+./c-opencode.sh status
+./c-opencode.sh run "your prompt"
+```
 
 ## Architecture Overview
 
@@ -52,19 +78,29 @@ This Docker configuration provides a secure, containerized environment for the O
 
 ## Quick Start
 
-### 1. Build the image
+ ### 1. Build the image
 
-```bash
-docker-compose build
-```
+ ```bash
+ docker-compose build
+ ```
 
-### 2. Start the server
+ ### 2. Start the server (single project)
 
-```bash
-docker-compose up -d
-```
+ ```bash
+ docker-compose up -d
+ ```
 
-### 3. Check server status
+ ### 2. Start the server (multiple projects with dynamic ports)
+
+ ```bash
+ cd /path/to/project1
+ ./c-opencode.sh start
+
+ cd /path/to/project2  
+ ./c-opencode.sh start
+ ```
+
+ ### 3. Check server status
 
 ```bash
 ./c-opencode.sh status
@@ -79,11 +115,47 @@ docker-compose up -d
 # List sessions
 ./c-opencode.sh list-sessions
 
-# Start a new session
-./c-opencode.sh start myproject
-```
+ # Start a new session
+ ./c-opencode.sh start myproject
+ ```
 
-## Directory Structure
+ ## Dynamic Port Architecture
+
+ For projects requiring parallel runs or isolated server instances:
+
+ ```
+ ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+ │   Project Folder    │  │   Project Folder    │  │   Project Folder    │
+ │   /project1/        │  │   /project2/        │  │   /project3/        │
+ ├─────────────────────┤  ├─────────────────────┤  ├─────────────────────┤
+ │  .opencode-port:4100│  │  .opencode-port:4101│  │  .opencode-port:4102│
+ │  opencode-server-pro│  │  opencode-server-pro│  │  opencode-server-pro│
+ │  ject1 (running)    │  │  ject2 (running)    │  │  ject3 (running)    │
+ │  Port:127.0.0.1:4100│  │  Port:127.0.0.1:4101│  │  Port:127.0.0.1:4102│
+ │  Container ID: abc12│  │  Container ID: def34│  │  Container ID: ghi56│
+ └─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+        │                       │                       │
+        │                       │                       │
+        ▼                       ▼                       ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │                    Docker Host                              │
+ │  ┌──────────────────────────────────────────────────────┐  │
+ │  │  Port Mapping: 4100-4999 (999 max projects)         │  │
+ │  │  Port tracker: .opencode-port (gitignored)          │  │
+ │  │  Auto-cleanup: Remove exited containers on startup  │  │
+ │  └──────────────────────────────────────────────────────┘  │
+ └─────────────────────────────────────────────────────────────┘
+ ```
+
+ ### Features
+
+ - **Automatic Port Assignment**: Finds first available port in range 4100-4999
+ - **Persistent Tracking**: Port saved in `.opencode-port` file per project
+ - **Container Reuse**: Same container reused across terminals for same project
+ - **Multi-Project**: Each folder gets its own isolated server instance
+ - **Auto-Cleanup**: Removed exited containers on server startup
+
+ ## Directory Structure
 
 ```
 opencode/
@@ -120,23 +192,65 @@ The `c-opencode.sh` script provides a clean CLI interface:
 
 ### Commands
 
-```bash
-# Check server health
-c-opencode.sh status
+ ```bash
+ # Start server (dynamic port allocation for multiple projects)
+ c-opencode.sh start
+ c-opencode.sh start 4200  # Optional specific port
+ 
+ # Check server health
+ c-opencode.sh status
+ 
+ # Run a prompt
+ c-opencode.sh run "your prompt here"
+ 
+ # List sessions
+ c-opencode.sh list-sessions
+ 
+ # List all opencode servers
+ c-opencode.sh list
+ 
+ # Stop server
+ c-opencode.sh stop
+ 
+ # Clean stopped containers
+ c-opencode.sh clean
+ ```
 
-# Run a prompt
-c-opencode.sh run "your prompt here"
+### Port Management
 
-# List sessions
-c-opencode.sh list-sessions
+ - **Port Range**: 4100-4999 (999 max projects)
+ - **Port File**: `.opencode-port` stores assigned port per project
+ - **Dynamic Scan**: Automatically finds first available port
+ - **Multi-Project**: Different folders use different ports
 
-# Start a new session
-c-opencode.sh start [session-name]
-```
+ ### Common Issues
 
-### Environment Variables
+ **No port found in range**
+ ```bash
+ # Check for free ports
+ lsof -i :4100-4999
+ # Clean up stopped containers
+ c-opencode.sh clean
+ ```
 
-Create a `.env` file in the project root:
+ **Port already in use**
+ ```bash
+ # Stop existing server
+ c-opencode.sh stop
+ # Or force specific port
+ c-opencode.sh start 4500
+ ```
+
+ **Stale port file**
+ ```bash
+ # Remove .opencode-port to force new port assignment
+ rm .opencode-port
+ c-opencode.sh start
+ ```
+
+ ### Environment Variables
+
+ Create a `.env` file in the project root:
 
 ```bash
 # Server configuration (optional, defaults to 127.0.0.1:4096)

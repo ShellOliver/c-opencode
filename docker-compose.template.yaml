@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  opencode-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opencode:latest
+    container_name: opencode-server-${PROJECT_NAME}
+    ports:
+      - "127.0.0.1:${SERVER_PORT}:4096"
+    volumes:
+      - ${HOME}/.config/opencode:/root/.config/opencode:ro
+      - ${HOME}/.local/share/opencode:/root/.local/share/opencode:rw
+      - .:/workspace:rw
+    environment:
+      - NODE_ENV=production
+      - OPENCODE_HOST=127.0.0.1
+    entrypoint: ["opencode", "serve", "--hostname", "127.0.0.1", "--port", "4096"]

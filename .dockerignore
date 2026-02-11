@@ -66,5 +66,8 @@ tmp
 .env.local
 .env.*.local
 
+# OpenCode Port Tracking
+.opencode-port
+
 # c-opencode.sh wrapper (use host version)
 c-opencode.sh

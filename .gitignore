@@ -44,6 +44,9 @@ docker-compose.yaml
 .dockerignore
 c-opencode.sh
 
+# OpenCode Port Tracking
+.opencode-port
+
 # Git (should not be in docker context)
 .git
 .gitignore
