@@ -18,15 +18,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /home/node
+
+USER root
+
+RUN mkdir -p /home/node/.config/opencode && chown -R node:node /home/node/.config/opencode
+RUN mkdir -p /home/node/.local/share/opencode && chown -R node:node /home/node/.local/share/opencode
+RUN mkdir -p /home/node/.local/state && chown -R node:node /home/node/.local/state
 
 # Use the existing node user (UID 1000, GID 1000) instead of creating a duplicate
 USER node
 
+# Install OpenCode using official installer
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+
 # Set environment variables
 ENV NODE_ENV=production
 ENV HOME=/home/node
-ENV PATH="$HOME/.local/bin:${PATH}"
+ENV PATH="$HOME/.opencode/bin:$PATH"
 
 # Expose the opencode server port
 EXPOSE 4096

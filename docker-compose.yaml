@@ -1,24 +1,18 @@
-version: '3.8'
-
 services:
   opencode-server:
     build:
       context: .
       dockerfile: Dockerfile
     image: opencode:latest
-    container_name: opencode-server
+    container_name: opencode-server-${PROJECT_NAME}
     ports:
-      - "127.0.0.1:4096:4096"
+      - "${SERVER_PORT}:4096"
     volumes:
-      # Mount host configuration (read-only)
-      - ${HOME}/.config/opencode:/root/.config/opencode:ro
-      # Mount local data directory (read-write for cache/sessions)
-      - ${HOME}/.local/share/opencode:/root/.local/share/opencode:rw
-      # Mount current directory as workspace
+      - ${HOME}/.config/opencode:/home/node/.config/opencode:ro
+      - ${HOME}/.local/share/opencode:/home/node/.local/share/opencode:rw
+      - ${HOME}/.local/state:/home/node/.local/state:rw
       - .:/workspace:rw
     environment:
       - NODE_ENV=production
-      - OPENCODE_HOST=127.0.0.1
-      - OPENCODE_PORT=4096
-    restart: unless-stopped
-    entrypoint: ["opencode", "serve", "--hostname", "127.0.0.1", "--port", "4096"]
+      - OPENCODE_HOST=0.0.0.0
+    entrypoint: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
