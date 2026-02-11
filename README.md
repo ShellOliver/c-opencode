@@ -254,8 +254,8 @@ cat .opencode-port  # Shows: 4100
 
 ```bash
 # Check logs
-./c-opencode.sh log  # If available, or:
-docker-compose logs
+./c-opencode.sh log  # If available, or check container directly:
+docker logs opencode-server  # or check .opencode-container-id for container name
 
 # Ensure directories exist
 mkdir -p ~/.config/opencode
@@ -302,9 +302,8 @@ sudo chown -R $(whoami) ~/.local/share/opencode
 ```bash
 # Clean rebuild
 ./c-opencode.sh stop
-docker-compose down -v
-docker-compose build --no-cache
-docker-compose up -d
+./c-opencode.sh clean
+./c-opencode.sh start
 ```
 
 ---
