@@ -1,259 +1,191 @@
-# OpenCode Docker Setup with Server/Client Architecture
+# OpenCode Docker Setup
 
- This Docker configuration provides a secure, containerized environment for the OpenCode AI coding agent using a **server/client architecture pattern**.
+A containerized environment for the OpenCode AI coding agent with server/client architecture and multi-project support.
 
-## Dynamic Port Allocation (Multi-Project Support)
-
-When managing **multiple projects**, each project folder gets its own container with a dynamically allocated port (4100-4999). This enables running parallel instances for different projects.
-
-### How It Works
-
-- **Automatic Port Assignment**: First run finds available port starting from 4100
-- **Port Persistence**: Port stored in `.opencode-port` file (gitignored)
-- **Container Reuse**: Same container reused in multiple terminals for same project
-- **Multi-Project**: Different project folders use different ports independently
-
-### Quick Start for Multiple Projects
-
-```bash
-cd /path/to/project1
-./c-opencode.sh start
-
-cd /path/to/project2
-./c-opencode.sh start
-
-# Each project now runs on different port (e.g., 4100, 4101)
-# Check status and run commands independently
-./c-opencode.sh status
-./c-opencode.sh run "your prompt"
-```
-
-## Architecture Overview
-
-### Server/Client Pattern
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Local Host                              │
-│  ┌──────────────────┐         ┌──────────────────────────┐     │
-│  │  c-opencode.sh   │────────>│  HTTP Client (@opencode-  │     │
-│  │  (Local Wrapper) │  API    │   sdk)                   │     │
-│  └──────────────────┘         └──────────────────────────┘     │
-│                                         │                      │
-│                                         ▼                      │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                   Docker Container                       │  │
-│  │  ┌────────────────────────────────────────────────────┐  │  │
-│  │  │  OpenCode Server (opencode serve)                  │  │  │
-│  │  │  - Headless HTTP server on port 4096              │  │  │
-│  │  │  - Runs as non-root user                           │  │  │
-│  │  │  - Handles all AI agent operations                 │  │  │
-│  │  └────────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│         ▲              ▲              ▲                        │
-│         │              │              │                        │
-│  ┌──────┴──────┐  ┌───┴──────┐  ┌───┴────────┐              │
-│  │ ~/.config/  │  │ ~/.local/│  │  ./workspace│              │
-│  │  opencode   │  │  share/  │  │   (project) │              │
-│  │   (ro)      │  │ opencode │  │   (rw)      │              │
-│  └─────────────┘  └──────────┘  └─────────────┘              │
-```
-
-### Why This Approach?
-
-**Issue #12439**: The TUI has Docker issues. This server/client pattern solves:
-
-- ✅ **TUI independence**: Server runs headless, no terminal issues
-- ✅ **Client flexibility**: Any HTTP client can connect (Python, Node.js, curl, etc.)
-- ✅ **Security**: Server runs in isolated container with minimal privileges
-- ✅ **Configuration persistence**: Host configs mounted into container
-- ✅ **Multi-client support**: Multiple clients can connect simultaneously
-
-## Prerequisites
-
-- Docker (v20+)
-- Docker Compose (v2+)
-- Node.js 22+ (for local wrapper)
-- OpenCode API key configured on host
+---
 
 ## Quick Start
 
- ### 1. Build the image
-
- ```bash
- docker-compose build
- ```
-
- ### 2. Start the server (single project)
-
- ```bash
- docker-compose up -d
- ```
-
- ### 2. Start the server (multiple projects with dynamic ports)
-
- ```bash
- cd /path/to/project1
- ./c-opencode.sh start
-
- cd /path/to/project2  
- ./c-opencode.sh start
- ```
-
- ### 3. Check server status
-
 ```bash
+# One-time setup
+./c-opencode.sh
+
+# Start server in your project
+cd /path/to/project
+./c-opencode.sh start
+
+# Run tasks
+./c-opencode.sh run "analyze this codebase"
 ./c-opencode.sh status
 ```
 
-### 4. Use the wrapper
+---
+
+## Usage Guide
+
+### Installation (One-Time Setup)
+
+The wrapper script `c-opencode.sh` is included in the repository. No additional installation needed.
 
 ```bash
-# Run a task
-./c-opencode.sh run "analyze this codebase"
+# Verify the script exists
+ls -la c-opencode.sh
 
-# List sessions
-./c-opencode.sh list-sessions
-
- # Start a new session
- ./c-opencode.sh start myproject
- ```
-
- ## Dynamic Port Architecture
-
- For projects requiring parallel runs or isolated server instances:
-
- ```
- ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
- │   Project Folder    │  │   Project Folder    │  │   Project Folder    │
- │   /project1/        │  │   /project2/        │  │   /project3/        │
- ├─────────────────────┤  ├─────────────────────┤  ├─────────────────────┤
- │  .opencode-port:4100│  │  .opencode-port:4101│  │  .opencode-port:4102│
- │  opencode-server-pro│  │  opencode-server-pro│  │  opencode-server-pro│
- │  ject1 (running)    │  │  ject2 (running)    │  │  ject3 (running)    │
- │  Port:127.0.0.1:4100│  │  Port:127.0.0.1:4101│  │  Port:127.0.0.1:4102│
- │  Container ID: abc12│  │  Container ID: def34│  │  Container ID: ghi56│
- └─────────────────────┘  └─────────────────────┘  └─────────────────────┘
-        │                       │                       │
-        │                       │                       │
-        ▼                       ▼                       ▼
- ┌─────────────────────────────────────────────────────────────┐
- │                    Docker Host                              │
- │  ┌──────────────────────────────────────────────────────┐  │
- │  │  Port Mapping: 4100-4999 (999 max projects)         │  │
- │  │  Port tracker: .opencode-port (gitignored)          │  │
- │  │  Auto-cleanup: Remove exited containers on startup  │  │
- │  └──────────────────────────────────────────────────────┘  │
- └─────────────────────────────────────────────────────────────┘
- ```
-
- ### Features
-
- - **Automatic Port Assignment**: Finds first available port in range 4100-4999
- - **Persistent Tracking**: Port saved in `.opencode-port` file per project
- - **Container Reuse**: Same container reused across terminals for same project
- - **Multi-Project**: Each folder gets its own isolated server instance
- - **Auto-Cleanup**: Removed exited containers on server startup
-
- ## Directory Structure
-
-```
-opencode/
-├── Dockerfile           # Container image definition
-├── docker-compose.yaml  # Service definition
-├── .dockerignore        # Files excluded from build
-├── c-opencode.sh        # Local wrapper script
-├── README.md           # This file
-└── .gitignore          # Git ignore rules
+# Make it executable if needed
+chmod +x c-opencode.sh
 ```
 
-## Configuration Mounting
+### Running from Different Folders
 
-### Volume Mappings
+Each project folder gets its own server instance with a unique port:
+
+```bash
+cd ~/projects/project1
+./c-opencode.sh start  # Uses port 4100
+
+cd ~/projects/project2
+./c-opencode.sh start  # Uses port 4101
+
+cd ~/projects/project3
+./c-opencode.sh start  # Uses port 4102
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `run "prompt"` | Execute a task with the given prompt |
+| `start` | Start the server (dynamic port allocation) |
+| `start <port>` | Start on specific port (e.g., `start 4200`) |
+| `stop` | Stop the current server |
+| `status` | Show server status and health |
+| `list` | List all running OpenCode servers |
+| `list-sessions` | List all active sessions |
+| `clean` | Remove stopped containers |
+| `help` | Show this help message |
+
+### Dynamic Port Allocation
+
+- **Port Range**: 4100-4999 (supports up to 999 parallel projects)
+- **Port File**: `.opencode-port` (gitignored) stores the assigned port
+- **Automatic**: First available port is selected automatically
+- **Persistent**: Same port reused for same project across terminals
+
+### Examples
+
+**Basic workflow:**
+```bash
+cd ~/my-project
+./c-opencode.sh start
+./c-opencode.sh run "debug this module"
+./c-opencode.sh status
+```
+
+**Check server status:**
+```bash
+./c-opencode.sh status
+# Shows: running on http://127.0.0.1:4100
+```
+
+**List all running servers:**
+```bash
+./c-opencode.sh list
+# Shows all projects with their ports
+```
+
+**Stop and clean up:**
+```bash
+./c-opencode.sh stop
+./c-opencode.sh clean  # Remove stopped containers
+```
+
+**Handle port conflicts:**
+```bash
+# If port 4100 is taken, use specific port
+./c-opencode.sh start 4500
+
+# Or stop existing and restart
+./c-opencode.sh stop
+./c-opencode.sh start
+```
+
+**Reset port assignment:**
+```bash
+rm .opencode-port  # Remove stale port file
+./c-opencode.sh start  # Gets new port
+```
+
+---
+
+## How It Works
+
+### Architecture Overview
+
+```
+Local Host                          Docker Container
+┌──────────────────┐         ┌──────────────────────────┐
+│  c-opencode.sh   │────────>│  OpenCode Server         │
+│  (Local Wrapper) │  API    │  - HTTP server on 4096   │
+└──────────────────┘         │  - Non-root execution    │
+                             └──────────────────────────┘
+```
+
+### What Happens in Background
+
+1. **Port Discovery**: Script scans 4100-4999 for first available port
+2. **Port Storage**: Port saved to `.opencode-port` in project folder
+3. **Container Launch**: Docker container started with:
+   - Port mapping: `127.0.0.1:<port>:4096`
+   - Volume mounts for config and workspace
+4. **Server Start**: OpenCode server starts in headless mode
+5. **Client Request**: Wrapper sends HTTP requests to server
+
+### Server/Client Pattern
+
+- **Server**: Runs in container, executes AI operations
+- **Client**: `c-opencode.sh` wrapper sends HTTP requests
+- **Benefits**:
+  - TUI independence (no terminal issues)
+  - Multiple clients can connect
+  - Security through isolation
+  - Configuration persistence from host
+
+---
+
+## Architecture Details
+
+### Container Setup
+
+- **Base Image**: Minimal Node.js 22+ image
+- **User**: Non-root user (UID 1000)
+- **Port**: Internal port 4096 (mapped to dynamic host port)
+- **Startup Command**: `opencode serve --hostname 127.0.0.1 --port 4096`
+
+### Volume Mounts
 
 | Host Path | Container Path | Mode | Purpose |
 |-----------|----------------|------|---------|
 | `~/.config/opencode` | `/root/.config/opencode` | `ro` | Configuration files |
 | `~/.local/share/opencode` | `/root/.local/share/opencode` | `rw` | Cache and session data |
-| `./` (current dir) | `/workspace` | `rw` | Project workspace |
+| `./` (project folder) | `/workspace` | `rw` | Project workspace |
 
-### Configuration Preserved from Host
+### Configuration Flow
 
-- `opencode.json` - Main configuration with MCP servers
-- API keys and tokens in auth directory
-- Custom prompts and templates
-- MCP server configurations
+1. Host loads `opencode.json` and auth files
+2. Directories mounted into container at startup
+3. OpenCode server reads config from container paths
+4. Changes persist on host (not in container image)
 
-**Note**: Configuration remains on your host system, not in the container image.
+---
 
-## Local Wrapper Usage
+## Configuration
 
-The `c-opencode.sh` script provides a clean CLI interface:
+### Environment Variables
 
-### Commands
-
- ```bash
- # Start server (dynamic port allocation for multiple projects)
- c-opencode.sh start
- c-opencode.sh start 4200  # Optional specific port
- 
- # Check server health
- c-opencode.sh status
- 
- # Run a prompt
- c-opencode.sh run "your prompt here"
- 
- # List sessions
- c-opencode.sh list-sessions
- 
- # List all opencode servers
- c-opencode.sh list
- 
- # Stop server
- c-opencode.sh stop
- 
- # Clean stopped containers
- c-opencode.sh clean
- ```
-
-### Port Management
-
- - **Port Range**: 4100-4999 (999 max projects)
- - **Port File**: `.opencode-port` stores assigned port per project
- - **Dynamic Scan**: Automatically finds first available port
- - **Multi-Project**: Different folders use different ports
-
- ### Common Issues
-
- **No port found in range**
- ```bash
- # Check for free ports
- lsof -i :4100-4999
- # Clean up stopped containers
- c-opencode.sh clean
- ```
-
- **Port already in use**
- ```bash
- # Stop existing server
- c-opencode.sh stop
- # Or force specific port
- c-opencode.sh start 4500
- ```
-
- **Stale port file**
- ```bash
- # Remove .opencode-port to force new port assignment
- rm .opencode-port
- c-opencode.sh start
- ```
-
- ### Environment Variables
-
- Create a `.env` file in the project root:
+Create `.env` in project root (optional):
 
 ```bash
-# Server configuration (optional, defaults to 127.0.0.1:4096)
+# Server configuration
 OPENCODE_HOST=127.0.0.1
 OPENCODE_PORT=4096
 
@@ -261,51 +193,68 @@ OPENCODE_PORT=4096
 NODE_ENV=production
 ```
 
-## API Endpoints
+### Advanced Port Management
 
-The server exposes the following endpoints:
+**Force specific port:**
+```bash
+./c-opencode.sh start 4200
+```
 
-- `GET /health` - Health check
-- `POST /run` - Execute a prompt
-- `GET /sessions` - List sessions
-- `POST /sessions` - Create new session
-- `GET /sessions/{id}` - Get session details
+**Check port availability:**
+```bash
+lsof -i :4100-4999
+```
 
-See the OpenCode API documentation for full details.
+**View port file:**
+```bash
+cat .opencode-port  # Shows: 4100
+```
 
-## Security Notes
+---
 
-### ✅ Security Features
+## Commands Reference
 
-- Non-root user execution (UID 1000)
-- Server runs on localhost only (127.0.0.1)
-- No authentication built-in (relies on localhost isolation)
-- Configuration preserved from host (not copied into image)
-- Environment variables for sensitive data
+| Command | Example | Description |
+|---------|---------|-------------|
+| `run` | `./c-opencode.sh run "fix this bug"` | Execute prompt |
+| `start` | `./c-opencode.sh start` | Start server (auto port) |
+| `start` | `./c-opencode.sh start 4200` | Start server (specific port) |
+| `stop` | `./c-opencode.sh stop` | Stop current server |
+| `status` | `./c-opencode.sh status` | Check server status |
+| `list` | `./c-opencode.sh list` | List all servers |
+| `list-sessions` | `./c-opencode.sh list-sessions` | List sessions |
+| `clean` | `./c-opencode.sh clean` | Remove stopped containers |
+| `help` | `./c-opencode.sh help` | Show help |
 
-### 🔒 Best Practices
+---
 
-1. **Never expose port 4096 publicly** - Only bind to 127.0.0.1
-2. **Keep API keys secure** - Store in host `~/.local/share/opencode`
-3. **Don't commit secrets** - Use `.env` with placeholders
-4. **Regular updates** - Keep base images and dependencies updated
-5. **Network restrictions** - Use firewall rules if needed
+## Security
 
-### Security Checklist
+### Features
 
-- [x] Non-root user
-- [x] Localhost-only binding
-- [x] No secrets in image
-- [x] Config mounted from host
-- [x] Auth data mounted from host
-- [x] Minimal base image
+- Non-root container execution
+- Localhost-only binding (127.0.0.1)
+- No authentication (relies on localhost isolation)
+- Configuration preserved from host
+- API keys mounted from host
+
+### Best Practices
+
+1. Never expose port 4096 publicly
+2. Keep API keys in host `~/.local/share/opencode`
+3. Don't commit secrets—use `.env` with placeholders
+4. Regular image updates
+5. Use firewall rules if needed
+
+---
 
 ## Troubleshooting
 
 ### Server won't start
 
 ```bash
-# Check container logs
+# Check logs
+./c-opencode.sh log  # If available, or:
 docker-compose logs
 
 # Ensure directories exist
@@ -313,27 +262,37 @@ mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
 
 # Check permissions
-ls -la ~/.config/opencode
-ls -la ~/.local/share/opencode
+ls -la ~/.config/opencode ~/.local/share/opencode
 ```
 
 ### Connection refused
 
 ```bash
-# Verify server is running
-docker-compose ps
+# Verify running
+./c-opencode.sh status
 
-# Check if port is in use
-lsof -i :4096
+# Check port usage
+lsof -i :4100-4999
 
-# Restart server
-docker-compose restart
+# Restart
+./c-opencode.sh stop
+./c-opencode.sh start
+```
+
+### Port in use
+
+```bash
+# Stop existing
+./c-opencode.sh stop
+
+# Or use different port
+./c-opencode.sh start 4500
 ```
 
 ### Permission denied
 
 ```bash
-# Fix directory permissions
+# Fix ownership
 sudo chown -R $(whoami) ~/.config/opencode
 sudo chown -R $(whoami) ~/.local/share/opencode
 ```
@@ -342,52 +301,24 @@ sudo chown -R $(whoami) ~/.local/share/opencode
 
 ```bash
 # Clean rebuild
+./c-opencode.sh stop
 docker-compose down -v
 docker-compose build --no-cache
 docker-compose up -d
 ```
 
-## Development
-
-### Build locally
-
-```bash
-docker build -t opencode .
-```
-
-### Run interactively
-
-```bash
-docker run -it --rm \
-  -v ~/.config/opencode:/root/.config/opencode:ro \
-  -v ~/.local/share/opencode:/root/.local/share/opencode:rw \
-  -v $(pwd):/workspace:rw \
-  -p 127.0.0.1:4096:4096 \
-  opencode \
-  opencode serve --hostname 127.0.0.1 --port 4096
-```
-
-### Test API manually
-
-```bash
-# Health check
-curl http://127.0.0.1:4096/health
-
-# Run a prompt
-curl -X POST http://127.0.0.1:4096/run \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "analyze this codebase"}'
-```
+---
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions welcome!
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
+1. Fork repository
+2. Create feature branch
+3. Make changes
+4. Submit pull request
+
+---
 
 ## License
 
