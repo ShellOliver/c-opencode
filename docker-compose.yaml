@@ -1,0 +1,26 @@
+version: '3.8'
+
+x-opencode-variables: &opencode-variables
+  NODE_ENV: production
+  PATH: /root/.npm-global/bin:${PATH}
+
+services:
+  opencode:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opencode:latest
+    container_name: opencode
+    stdin_open: true
+    tty: true
+    volumes:
+      # Mount current directory as workspace
+      - .:/workspace:ro
+      # Mount opencode configuration directory
+      - ${HOME}/.config/opencode:/root/.config/opencode:ro
+      # Mount opencode authentication data directory
+      - ${HOME}/.local/share/opencode:/root/.local/share/opencode
+    user: "1000:1000"
+    environment: *opencode-variables
+    entrypoint: ["opencode"]
+    command: []
