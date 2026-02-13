@@ -40,8 +40,8 @@ ENV PATH="$HOME/.opencode/bin:$PATH"
 # Expose the opencode server port
 EXPOSE 4096
 
-# Default command runs the headless server
-CMD ["opencode", "serve", "--hostname", "127.0.0.1", "--port", "4096"]
+# Default command runs the headless server with mDNS enabled
+CMD ["opencode", "serve", "--mdns", "--port", "4096"]
 
 # Health check endpoint is provided by opencode serve command
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
