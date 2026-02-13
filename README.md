@@ -37,39 +37,41 @@ chmod +x c-opencode.sh
 
 ### Running from Different Folders
 
-Each project folder gets its own server instance with a unique port:
+Each project folder gets its own server instance with a unique container:
 
 ```bash
 cd ~/projects/project1
-./c-opencode.sh start  # Uses port 4100
+./c-opencode.sh start  # Creates container opencode-<hash1>
 
 cd ~/projects/project2
-./c-opencode.sh start  # Uses port 4101
+./c-opencode.sh start  # Creates container opencode-<hash2>
 
 cd ~/projects/project3
-./c-opencode.sh start  # Uses port 4102
+./c-opencode.sh start  # Creates container opencode-<hash3>
 ```
+
+Container naming uses MD5 hash of the canonical project path to ensure uniqueness.
 
 ### Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `run "prompt"` | Execute a task with the given prompt |
-| `start` | Start the server (dynamic port allocation) |
-| `start <port>` | Start on specific port (e.g., `start 4200`) |
+| `start` | Start the server (Docker assigns port automatically) |
 | `stop` | Stop the current server |
-| `status` | Show server status and health |
-| `list` | List all running OpenCode servers |
+| `restart` | Restart the server |
+| `status` | Show server status and port |
+| `logs` | View container logs |
+| `run "prompt"` | Execute a task with the given prompt |
+| `list` | List all OpenCode containers |
 | `list-sessions` | List all active sessions |
 | `clean` | Remove stopped containers |
 | `help` | Show this help message |
 
-### Dynamic Port Allocation
+### Automatic Port Assignment
 
-- **Port Range**: 4100-4999 (supports up to 999 parallel projects)
-- **Port File**: `.opencode-port` (gitignored) stores the assigned port
-- **Automatic**: First available port is selected automatically
-- **Persistent**: Same port reused for same project across terminals
+- **Port Assignment**: Docker assigns ports automatically from ephemeral range
+- **Port Retrieval**: Query Docker directly for assigned port
+- **Localhost Only**: All ports bound to 127.0.0.1 for security
 
 ### Examples
 
@@ -84,35 +86,24 @@ cd ~/my-project
 **Check server status:**
 ```bash
 ./c-opencode.sh status
-# Shows: running on http://127.0.0.1:4100
+# Shows: Server is running on http://127.0.0.1:<port>
 ```
 
-**List all running servers:**
+**List all containers:**
 ```bash
 ./c-opencode.sh list
-# Shows all projects with their ports
+# Shows all projects with their container names and ports
+```
+
+**View logs:**
+```bash
+./c-opencode.sh logs
 ```
 
 **Stop and clean up:**
 ```bash
 ./c-opencode.sh stop
 ./c-opencode.sh clean  # Remove stopped containers
-```
-
-**Handle port conflicts:**
-```bash
-# If port 4100 is taken, use specific port
-./c-opencode.sh start 4500
-
-# Or stop existing and restart
-./c-opencode.sh stop
-./c-opencode.sh start
-```
-
-**Reset port assignment:**
-```bash
-rm .opencode-port  # Remove stale port file
-./c-opencode.sh start  # Gets new port
 ```
 
 ---
@@ -132,11 +123,12 @@ Local Host                          Docker Container
 
 ### What Happens in Background
 
-1. **Port Discovery**: Script scans 4100-4999 for first available port
-2. **Port Storage**: Port saved to `.opencode-port` in project folder
-3. **Container Launch**: Docker container started with:
-   - Port mapping: `127.0.0.1:<port>:4096`
+1. **Container Naming**: Script computes MD5 hash of project path for unique container name
+2. **Container Launch**: Docker container started with:
+   - Port mapping: `127.0.0.1::4096` (Docker assigns port)
+   - Labels for project discovery
    - Volume mounts for config and workspace
+3. **Port Discovery**: Query Docker for assigned port via `docker port`
 4. **Server Start**: OpenCode server starts in headless mode
 5. **Client Request**: Wrapper sends HTTP requests to server
 
@@ -158,15 +150,21 @@ Local Host                          Docker Container
 
 - **Base Image**: Minimal Node.js 22+ image
 - **User**: Non-root user (UID 1000)
-- **Port**: Internal port 4096 (mapped to dynamic host port)
-- **Startup Command**: `opencode serve --hostname 127.0.0.1 --port 4096`
+- **Port**: Internal port 4096 (Docker assigns host port dynamically)
+- **Startup Command**: `opencode serve --hostname 0.0.0.0 --port 4096`
+
+### Container Labels
+
+- `opencode.managed=true` - Marks container as managed by wrapper
+- `opencode.path=/path/to/project` - Tracks project path
 
 ### Volume Mounts
 
 | Host Path | Container Path | Mode | Purpose |
 |-----------|----------------|------|---------|
-| `~/.config/opencode` | `/root/.config/opencode` | `ro` | Configuration files |
-| `~/.local/share/opencode` | `/root/.local/share/opencode` | `rw` | Cache and session data |
+| `~/.config/opencode` | `/home/node/.config/opencode` | `ro` | Configuration files |
+| `~/.local/share/opencode` | `/home/node/.local/share/opencode` | `rw` | Cache and session data |
+| `~/.local/state` | `/home/node/.local/state` | `rw` | State data |
 | `./` (project folder) | `/workspace` | `rw` | Project workspace |
 
 ### Configuration Flow
@@ -186,28 +184,11 @@ Create `.env` in project root (optional):
 
 ```bash
 # Server configuration
-OPENCODE_HOST=127.0.0.1
+OPENCODE_HOST=0.0.0.0
 OPENCODE_PORT=4096
 
 # Node environment
 NODE_ENV=production
-```
-
-### Advanced Port Management
-
-**Force specific port:**
-```bash
-./c-opencode.sh start 4200
-```
-
-**Check port availability:**
-```bash
-lsof -i :4100-4999
-```
-
-**View port file:**
-```bash
-cat .opencode-port  # Shows: 4100
 ```
 
 ---
@@ -216,12 +197,13 @@ cat .opencode-port  # Shows: 4100
 
 | Command | Example | Description |
 |---------|---------|-------------|
-| `run` | `./c-opencode.sh run "fix this bug"` | Execute prompt |
 | `start` | `./c-opencode.sh start` | Start server (auto port) |
-| `start` | `./c-opencode.sh start 4200` | Start server (specific port) |
 | `stop` | `./c-opencode.sh stop` | Stop current server |
+| `restart` | `./c-opencode.sh restart` | Restart server |
 | `status` | `./c-opencode.sh status` | Check server status |
-| `list` | `./c-opencode.sh list` | List all servers |
+| `logs` | `./c-opencode.sh logs` | View container logs |
+| `run` | `./c-opencode.sh run "fix this bug"` | Execute prompt |
+| `list` | `./c-opencode.sh list` | List all containers |
 | `list-sessions` | `./c-opencode.sh list-sessions` | List sessions |
 | `clean` | `./c-opencode.sh clean` | Remove stopped containers |
 | `help` | `./c-opencode.sh help` | Show help |
@@ -237,10 +219,11 @@ cat .opencode-port  # Shows: 4100
 - No authentication (relies on localhost isolation)
 - Configuration preserved from host
 - API keys mounted from host
+- Docker labels for project discovery
 
 ### Best Practices
 
-1. Never expose port 4096 publicly
+1. Never expose ports publicly
 2. Keep API keys in host `~/.local/share/opencode`
 3. Don't commit secrets—use `.env` with placeholders
 4. Regular image updates
@@ -254,15 +237,18 @@ cat .opencode-port  # Shows: 4100
 
 ```bash
 # Check logs
-./c-opencode.sh log  # If available, or check container directly:
-docker logs opencode-server  # or check .opencode-container-id for container name
+./c-opencode.sh logs
+
+# Or check container directly:
+docker ps -a --filter "label=opencode.managed=true"
 
 # Ensure directories exist
 mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
+mkdir -p ~/.local/state
 
 # Check permissions
-ls -la ~/.config/opencode ~/.local/share/opencode
+ls -la ~/.config/opencode ~/.local/share/opencode ~/.local/state
 ```
 
 ### Connection refused
@@ -271,22 +257,12 @@ ls -la ~/.config/opencode ~/.local/share/opencode
 # Verify running
 ./c-opencode.sh status
 
-# Check port usage
-lsof -i :4100-4999
+# Check containers
+docker ps -a --filter "label=opencode.managed=true"
 
 # Restart
 ./c-opencode.sh stop
 ./c-opencode.sh start
-```
-
-### Port in use
-
-```bash
-# Stop existing
-./c-opencode.sh stop
-
-# Or use different port
-./c-opencode.sh start 4500
 ```
 
 ### Permission denied
@@ -295,6 +271,7 @@ lsof -i :4100-4999
 # Fix ownership
 sudo chown -R $(whoami) ~/.config/opencode
 sudo chown -R $(whoami) ~/.local/share/opencode
+sudo chown -R $(whoami) ~/.local/state
 ```
 
 ### Update issues
