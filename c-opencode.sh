@@ -17,6 +17,8 @@ WORKTREE_DIR=".git/worktrees"
 
 ADDITIONAL_PORTS=()
 IS_PUBLIC=false
+USE_WORKTREE=false
+REMAINING_ARGS=()
 
 # Resolve the real script path (handles symlinks)
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
@@ -169,6 +171,26 @@ parse_args() {
     done
 }
 
+parse_global_flags() {
+    REMAINING_ARGS=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --worktree)
+                USE_WORKTREE=true
+                shift
+                ;;
+            -*)
+                REMAINING_ARGS+=("$1")
+                shift
+                ;;
+            *)
+                REMAINING_ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
 get_bind_host() {
     if [ "$IS_PUBLIC" = true ]; then
         echo "0.0.0.0"
@@ -226,8 +248,16 @@ cmd_start() {
     local workspace_dir="$current_dir"
     local ports=$(build_docker_ports)
     
-    local worktree_path=$(get_worktree_path)
-    if ensure_worktree; then
+    if [ "$USE_WORKTREE" = true ]; then
+        if ! git rev-parse --git-dir > /dev/null 2>&1; then
+            echo "Error: --worktree requires a git repository"
+            exit 1
+        fi
+        local worktree_path=$(get_worktree_path)
+        if ! ensure_worktree; then
+            echo "Error: Failed to create worktree"
+            exit 1
+        fi
         workspace_dir="$worktree_path"
     fi
     
@@ -597,6 +627,66 @@ cmd_worktree_remove() {
 cmd_clean() {
     check_docker
     
+    local clean_all=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --all)
+                clean_all=true
+                shift
+                ;;
+            -*)
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    
+    if [ "$clean_all" = true ]; then
+        echo "Cleaning all OpenCode containers and worktrees..."
+        echo ""
+        
+        local containers=$(docker ps -a --filter "label=${CONTAINER_LABEL}" --format "{{.Names}}" 2>/dev/null)
+        
+        if [ -n "$containers" ]; then
+            for container in $containers; do
+                local worktree_path=$(docker inspect --format='{{index .Config.Labels "opencode.worktree"}}' "$container" 2>/dev/null || echo "")
+                
+                echo "Removing container: $container"
+                docker stop "$container" > /dev/null 2>&1 || true
+                docker rm "$container" > /dev/null 2>&1 || true
+                
+                if [ -n "$worktree_path" ] && [ -d "$worktree_path" ]; then
+                    echo "  Removing worktree: $worktree_path"
+                    if ! git -C "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")" worktree remove "$worktree_path" --force 2>/dev/null; then
+                        rm -rf "$worktree_path" 2>/dev/null || true
+                    fi
+                fi
+            done
+        else
+            echo "  No containers found"
+        fi
+        
+        echo ""
+        echo "Cleaning orphaned worktrees..."
+        if [ -d ".git/worktrees" ]; then
+            for worktree in .git/worktrees/opencode-*; do
+                if [ -d "$worktree" ]; then
+                    echo "  Removing orphaned worktree: $worktree"
+                    rm -rf "$worktree" 2>/dev/null || true
+                fi
+            done
+            git worktree prune 2>/dev/null || true
+        else
+            echo "  No orphaned worktrees found"
+        fi
+        
+        echo ""
+        echo "✓ Cleanup complete"
+        return 0
+    fi
+    
     local container_name=$(get_container_name)
     local worktree_path=$(get_worktree_path)
     local cleaned=false
@@ -626,7 +716,7 @@ cmd_clean() {
 cmd_help() {
     echo "OpenCode Local Wrapper"
     echo ""
-    echo "Usage: c-opencode.sh <command> [options]"
+    echo "Usage: c-opencode.sh [global-options] <command> [options]"
     echo ""
     echo "Commands:"
     echo "  start [options]       Start the OpenCode server"
@@ -639,15 +729,20 @@ cmd_help() {
     echo "  list                  List all OpenCode servers"
     echo "  list-sessions         List all active sessions"
     echo "  worktree [remove]     Create/manage isolated worktree"
-    echo "  clean                 Stop container and remove worktree"
+    echo "  clean [--all]         Stop container and remove worktree"
     echo "  help                  Show this help message"
+    echo ""
+    echo "Global Options:"
+    echo "  --worktree            Use git worktree for isolation (mounts worktree instead of current dir)"
     echo ""
     echo "Options:"
     echo "  -p, --port <port>     Expose additional container port"
     echo "  --public              Bind to 0.0.0.0 (requires OPENCODE_SERVER_PASSWORD)"
+    echo "  --all                 Clean all projects (for clean command)"
     echo ""
     echo "Examples:"
-    echo "  c-opencode                      # Start server (shorthand)"
+    echo "  c-opencode                      # Start server (current dir mounted)"
+    echo "  c-opencode --worktree           # Start with worktree isolation"
     echo "  c-opencode start                # Start the OpenCode server"
     echo "  c-opencode start --public       # Start with public access"
     echo "  c-opencode start -p 3000        # Expose port 3000"
@@ -656,7 +751,8 @@ cmd_help() {
     echo "  c-opencode attach               # Attach to server"
     echo "  c-opencode worktree             # Create isolated worktree"
     echo "  c-opencode worktree remove     # Remove worktree"
-    echo "  c-opencode clean                # Stop and cleanup"
+    echo "  c-opencode clean                # Stop and cleanup current project"
+    echo "  c-opencode clean --all          # Stop and cleanup all projects"
 }
 
 # ============================================================================
@@ -664,54 +760,56 @@ cmd_help() {
 # ============================================================================
 
 main() {
-    local command="${1:-start}"
-    shift || true
+    parse_global_flags "$@"
+    
+    local command="${REMAINING_ARGS[0]:-start}"
+    local remaining=("${REMAINING_ARGS[@]:1}")
     
     case "$command" in
         start)
-            parse_args "$@"
+            parse_args "${remaining[@]}"
             SERVER_HOST=$(get_bind_host)
             cmd_start
             ;;
         run)
-            cmd_run "$@"
+            cmd_run "${remaining[@]}"
             ;;
         stop)
-            cmd_stop "$@"
+            cmd_stop "${remaining[@]}"
             ;;
         restart)
-            cmd_restart "$@"
+            cmd_restart "${remaining[@]}"
             ;;
         status|health|ping)
-            cmd_status "$@"
+            cmd_status "${remaining[@]}"
             ;;
         logs)
-            cmd_logs "$@"
+            cmd_logs "${remaining[@]}"
             ;;
         attach)
-            cmd_attach "$@"
+            cmd_attach "${remaining[@]}"
             ;;
         list|list-servers)
-            cmd_list "$@"
+            cmd_list "${remaining[@]}"
             ;;
         list-sessions|ls)
-            cmd_list_sessions "$@"
+            cmd_list_sessions "${remaining[@]}"
             ;;
         worktree)
-            if [ "${1:-}" = "remove" ]; then
+            if [ "${remaining[0]:-}" = "remove" ]; then
                 cmd_worktree_remove
             else
                 cmd_worktree
             fi
             ;;
         clean|cleanup)
-            cmd_clean "$@"
+            cmd_clean "${remaining[@]}"
             ;;
         help|--help|-h)
-            cmd_help "$@"
+            cmd_help "${remaining[@]}"
             ;;
         *)
-            parse_args "$command" "$@"
+            parse_args "$command" "${remaining[@]}"
             SERVER_HOST=$(get_bind_host)
             cmd_start
             ;;
