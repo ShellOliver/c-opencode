@@ -759,61 +759,6 @@ cmd_help() {
 # Main
 # ============================================================================
 
-main() {
-    parse_global_flags "$@"
-    
-    local command="${REMAINING_ARGS[0]:-start}"
-    local remaining=("${REMAINING_ARGS[@]:1}")
-    
-    case "$command" in
-        start)
-            parse_args "${remaining[@]}"
-            SERVER_HOST=$(get_bind_host)
-            cmd_start
-            ;;
-        run)
-            cmd_run "${remaining[@]}"
-            ;;
-        stop)
-            cmd_stop "${remaining[@]}"
-            ;;
-        restart)
-            cmd_restart "${remaining[@]}"
-            ;;
-        status|health|ping)
-            cmd_status "${remaining[@]}"
-            ;;
-        logs)
-            cmd_logs "${remaining[@]}"
-            ;;
-        attach)
-            cmd_attach "${remaining[@]}"
-            ;;
-        list|list-servers)
-            cmd_list "${remaining[@]}"
-            ;;
-        list-sessions|ls)
-            cmd_list_sessions "${remaining[@]}"
-            ;;
-        worktree)
-            if [ "${remaining[0]:-}" = "remove" ]; then
-                cmd_worktree_remove
-            else
-                cmd_worktree
-            fi
-            ;;
-        clean|cleanup)
-            cmd_clean "${remaining[@]}"
-            ;;
-        help|--help|-h)
-            cmd_help "${remaining[@]}"
-            ;;
-        *)
-            parse_args "$command" "${remaining[@]}"
-            SERVER_HOST=$(get_bind_host)
-            cmd_start
-            ;;
-    esac
-}
-
-main "$@"
+if [ "${BATS_TEST:-false}" != "true" ]; then
+    main "$@"
+fi

@@ -53,7 +53,6 @@ CHANGELOG.md
 
 # Test files
 test
-tests
 __tests__
 *.test.js
 *.spec.js
