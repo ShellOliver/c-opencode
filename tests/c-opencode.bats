@@ -124,5 +124,43 @@ setup() {
     run cmd_help
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Usage:" ]]
-    [[ "$output" =~ "Commands:" ]]
+    [[ "$output" =~ "Examples:" ]]
+}
+
+@test "main function exists and dispatches help" {
+    run main help
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Usage:" ]]
+    [[ "$output" =~ "Examples:" ]]
+}
+
+@test "main function exists and shows error for unknown command" {
+    run main nonexistent_command_xyz
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "Unknown command" ]]
+}
+
+@test "main function shows help when no command provided" {
+    run main
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Usage:" ]]
+}
+
+@test "parse_global_flags sets USE_WORKTREE for --worktree start" {
+    USE_WORKTREE=false
+    REMAINING_ARGS=()
+    parse_global_flags --worktree start
+    [ "$USE_WORKTREE" = "true" ]
+    [[ "${REMAINING_ARGS[0]}" == "start" ]]
+}
+
+@test "parse_global_flags preserves -p flags in remaining" {
+    ADDITIONAL_PORTS=()
+    USE_WORKTREE=false
+    REMAINING_ARGS=()
+    parse_global_flags --worktree start -p 3000
+    [ "$USE_WORKTREE" = "true" ]
+    [[ "${REMAINING_ARGS[0]}" == "start" ]]
+    [[ "${REMAINING_ARGS[1]}" == "-p" ]]
+    [[ "${REMAINING_ARGS[2]}" == "3000" ]]
 }

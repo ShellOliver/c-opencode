@@ -69,6 +69,29 @@ check_docker() {
     fi
 }
 
+ensure_docker_image() {
+    if docker image inspect opencode:latest &> /dev/null; then
+        return 0
+    fi
+    
+    echo "Building Docker image from Dockerfile..."
+    local dockerfile_path="${SCRIPT_DIR}/Dockerfile"
+    
+    if [ ! -f "$dockerfile_path" ]; then
+        echo "Error: Dockerfile not found at $dockerfile_path"
+        exit 1
+    fi
+    
+    docker build -t opencode:latest -f "$dockerfile_path" "$SCRIPT_DIR"
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to build Docker image"
+        exit 1
+    fi
+    
+    echo "Docker image built successfully"
+}
+
 wait_for_container_ready() {
     local container_name=$1
     local max_attempts=30
@@ -242,6 +265,7 @@ ensure_worktree() {
 
 cmd_start() {
     check_docker
+    ensure_docker_image
     
     local container_name=$(get_container_name)
     local current_dir=$(pwd)
@@ -272,7 +296,7 @@ cmd_start() {
         env_vars="$env_vars -e OPENCODE_SERVER_PASSWORD=$OPENCODE_SERVER_PASSWORD"
     fi
     
-    if docker ps --format "{{.Names}}" | grep -q "^${container_name}$"; then
+    if docker ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
         local status=$(docker inspect --format='{{.State.Status}}' "$container_name" 2>/dev/null || echo "")
         if [ "$status" = "running" ]; then
             local port=$(get_container_port "$container_name")
@@ -295,7 +319,8 @@ cmd_start() {
             -v "${HOME}/.config/opencode:/home/node/.config/opencode:ro" \
             -v "${HOME}/.local/share/opencode:/home/node/.local/share/opencode:rw" \
             -v "${HOME}/.local/state:/home/node/.local/state:rw" \
-            -v "${workspace_dir}:/workspace:rw" \
+            -v "${workspace_dir}:/workspace/project:rw" \
+            -w /workspace/project \
             $env_vars \
             opencode:latest
     fi
@@ -416,6 +441,10 @@ cmd_attach() {
     if [ -z "$port" ]; then
         echo "Server not running. Starting..."
         cmd_start
+        if ! wait_for_container_ready "$container_name"; then
+            echo "Error: Failed to start server"
+            return 1
+        fi
         port=$(get_container_port "$container_name")
     fi
     
@@ -428,46 +457,16 @@ cmd_attach() {
     if ! check_server "$server_host" "$port"; then
         echo "Server not responding. Restarting..."
         cmd_restart
+        if ! wait_for_container_ready "$container_name"; then
+            echo "Error: Failed to restart server"
+            return 1
+        fi
         port=$(get_container_port "$container_name")
     fi
     
     local server_url="http://${server_host}:${port}"
     echo "Attaching to OpenCode server..."
-    opencode attach "$server_url"
-}
-
-cmd_run() {
-    check_docker
-    
-    local prompt="$@"
-    if [ -z "$prompt" ]; then
-        echo "Usage: c-opencode.sh run <prompt>"
-        exit 1
-    fi
-    
-    local container_name=$(get_container_name)
-    local port=$(get_container_port "$container_name")
-    
-    if [ -z "$port" ]; then
-        echo "Server not running. Starting..."
-        cmd_start
-        port=$(get_container_port "$container_name")
-    fi
-    
-    local is_public=$(docker inspect --format='{{index .Config.Labels "opencode.public"}}' "$container_name" 2>/dev/null || echo "false")
-    local server_host="127.0.0.1"
-    if [ "$is_public" = "true" ]; then
-        server_host="0.0.0.0"
-    fi
-    
-    if ! check_server "$server_host" "$port"; then
-        echo "Server not responding. Restarting..."
-        cmd_restart
-        port=$(get_container_port "$container_name")
-    fi
-    
-    echo "Running: $prompt"
-    node "${SCRIPT_DIR}/scripts/opencode-run.js" "http://${server_host}:${port}" "$prompt"
+    opencode attach "$server_url" --dir /workspace/project
 }
 
 cmd_list_sessions() {
@@ -718,46 +717,89 @@ cmd_help() {
     echo ""
     echo "Usage: c-opencode.sh [global-options] <command> [options]"
     echo ""
-    echo "Commands:"
-    echo "  start [options]       Start the OpenCode server"
-    echo "  run <prompt>          Execute a prompt and get response"
-    echo "  stop                  Stop the OpenCode server"
-    echo "  restart               Restart the OpenCode server"
-    echo "  status                Check server health"
-    echo "  logs                  View container logs"
-    echo "  attach                Open OpenCode UI in browser"
-    echo "  list                  List all OpenCode servers"
-    echo "  list-sessions         List all active sessions"
-    echo "  worktree [remove]     Create/manage isolated worktree"
-    echo "  clean [--all]         Stop container and remove worktree"
-    echo "  help                  Show this help message"
-    echo ""
     echo "Global Options:"
-    echo "  --worktree            Use git worktree for isolation (mounts worktree instead of current dir)"
+    echo "  --worktree            Use git worktree for isolation (for start command)"
     echo ""
-    echo "Options:"
+    echo "Start Options:"
     echo "  -p, --port <port>     Expose additional container port"
     echo "  --public              Bind to 0.0.0.0 (requires OPENCODE_SERVER_PASSWORD)"
-    echo "  --all                 Clean all projects (for clean command)"
     echo ""
     echo "Examples:"
-    echo "  c-opencode                      # Start server (current dir mounted)"
-    echo "  c-opencode --worktree           # Start with worktree isolation"
-    echo "  c-opencode start                # Start the OpenCode server"
-    echo "  c-opencode start --public       # Start with public access"
-    echo "  c-opencode start -p 3000        # Expose port 3000"
-    echo "  c-opencode start -p 3000 -p 8080"
-    echo "  c-opencode run \"analyze this\""
-    echo "  c-opencode attach               # Attach to server"
-    echo "  c-opencode worktree             # Create isolated worktree"
-    echo "  c-opencode worktree remove     # Remove worktree"
-    echo "  c-opencode clean                # Stop and cleanup current project"
-    echo "  c-opencode clean --all          # Stop and cleanup all projects"
+    echo "  c-opencode start                   # Start server (current directory mounted)"
+    echo "  c-opencode start --public          # Start with public access"
+    echo "  c-opencode start -p 3000           # Expose port 3000 in container"
+    echo "  c-opencode --worktree start        # Start with git worktree isolation"
+    echo "  c-opencode attach                 # Open OpenCode UI in browser"
+    echo "  c-opencode worktree               # Create worktree manually"
+    echo "  c-opencode worktree remove        # Remove worktree"
+    echo "  c-opencode clean                  # Stop and cleanup current project"
+    echo "  c-opencode clean --all            # Stop and cleanup all projects"
 }
 
 # ============================================================================
 # Main
 # ============================================================================
+
+main() {
+    parse_global_flags "$@"
+    local command="${REMAINING_ARGS[0]:-}"
+    local remaining=("${REMAINING_ARGS[@]:1}")
+    
+    case "$command" in
+        start)
+            parse_args "${remaining[@]}"
+            ;;
+    esac
+    
+    case "$command" in
+        start)
+            cmd_start
+            ;;
+        attach)
+            cmd_attach
+            ;;
+        stop)
+            cmd_stop
+            ;;
+        restart)
+            cmd_restart
+            ;;
+        status)
+            cmd_status
+            ;;
+        logs)
+            cmd_logs
+            ;;
+        list)
+            cmd_list
+            ;;
+        list-sessions)
+            cmd_list_sessions
+            ;;
+        worktree)
+            case "${remaining[0]}" in
+                remove)
+                    cmd_worktree_remove
+                    ;;
+                *)
+                    cmd_worktree
+                    ;;
+            esac
+            ;;
+        clean)
+            cmd_clean "${remaining[@]}"
+            ;;
+        help|--help|-h|"")
+            cmd_help
+            ;;
+        *)
+            echo "Unknown command: $command"
+            echo ""
+            cmd_help
+            exit 1
+            ;;
+    esac
+}
 
 if [ "${BATS_TEST:-false}" != "true" ]; then
     main "$@"
