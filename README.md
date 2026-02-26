@@ -7,23 +7,33 @@ A containerized environment for the OpenCode AI coding agent with server/client 
 ## Quick Start
 
 ```bash
+# Install c-opencode (one-time setup)
+./install.sh
+
 # Start server in your project
 cd /path/to/project
-./c-opencode.sh start
+c-opencode start
 
 # Open browser UI
-./c-opencode.sh attach
+c-opencode attach
 ```
 
 ---
 
 ## Installation
 
-The wrapper script `c-opencode.sh` is included in the repository.
+Run the installer to set up the `c-opencode` command:
 
 ```bash
-# Make executable
-chmod +x c-opencode.sh
+./install.sh
+```
+
+This creates a symbolic link in `~/.local/bin` and adds it to your PATH.
+
+To uninstall, run:
+
+```bash
+./uninstall.sh
 ```
 
 ---
@@ -65,31 +75,31 @@ chmod +x c-opencode.sh
 
 ```bash
 # Start server (current directory mounted)
-./c-opencode.sh start
+c-opencode start
 
 # Start with public access
-./c-opencode.sh start --public
+c-opencode start --public
 
 # Expose port 3000 in container
-./c-opencode.sh start -p 3000
+c-opencode start -p 3000
 
 # Start with git worktree isolation
-./c-opencode.sh --worktree start
+c-opencode --worktree start
 
 # Open browser UI
-./c-opencode.sh attach
+c-opencode attach
 
 # Check server status
-./c-opencode.sh status
+c-opencode status
 
 # View logs
-./c-opencode.sh logs
+c-opencode logs
 
 # Stop server
-./c-opencode.sh stop
+c-opencode stop
 
 # Clean up (remove container + worktree)
-./c-opencode.sh clean
+c-opencode clean
 ```
 
 ---
@@ -101,8 +111,8 @@ chmod +x c-opencode.sh
 ```
 Local Host                          Docker Container
 ┌──────────────────┐         ┌──────────────────────────┐
-│  c-opencode.sh   │────────>│  OpenCode Server         │
-│  (Local Wrapper) │  API    │  - HTTP server on 4096   │
+│    c-opencode    │────────>│  OpenCode Server         │
+│  (CLI Command)   │  API    │  - HTTP server on 4096   │
 └──────────────────┘         │  - Working dir: /workspace/project
                              └──────────────────────────┘
 ```
@@ -124,10 +134,10 @@ Each project folder gets its own server instance:
 
 ```bash
 cd ~/projects/project1
-./c-opencode.sh start  # Creates container opencode-<hash1>
+c-opencode start  # Creates container opencode-<hash1>
 
 cd ~/projects/project2
-./c-opencode.sh start  # Creates container opencode-<hash2>
+c-opencode start  # Creates container opencode-<hash2>
 ```
 
 ---
@@ -159,20 +169,32 @@ cd ~/projects/project2
 
 ---
 
+## Uninstall
+
+To remove the `c-opencode` command:
+
+```bash
+./uninstall.sh
+```
+
+This removes the symbolic link from `~/.local/bin` and cleans up the PATH entry in `~/.bashrc`.
+
+---
+
 ## Troubleshooting
 
 ```bash
 # Check status
-./c-opencode.sh status
+c-opencode status
 
 # View logs
-./c-opencode.sh logs
+c-opencode logs
 
 # Restart
-./c-opencode.sh restart
+c-opencode restart
 
 # Full cleanup
-./c-opencode.sh clean
+c-opencode clean
 ```
 
 ---
