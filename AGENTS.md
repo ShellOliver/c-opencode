@@ -15,7 +15,6 @@ This is the OpenCode Docker Setup - a containerized environment for the OpenCode
 | `c-opencode.sh` | Main bash wrapper script (entry point) |
 | `tests/c-opencode.bats` | BATS test suite |
 | `Dockerfile` | Docker image definition |
-| `scripts/*.js` | Node.js client scripts |
 
 ---
 
@@ -143,9 +142,9 @@ setup() {
 ## Important Notes
 
 - Each project directory gets a unique container (hash-based naming)
-- Use `--worktree` with `start`: `c-opencode --worktree start`
+- Default command starts server and attaches TUI
 - Attach uses `/workspace/project` as working directory
-- Commands: `start`, `attach`, `stop`, `status`, `logs`, `clean`
+- Commands: `(no args)`, `web`, `help` (all other args passed through to opencode)
 
 ---
 

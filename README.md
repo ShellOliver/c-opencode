@@ -12,10 +12,10 @@ A containerized environment for the OpenCode AI coding agent with server/client 
 
 # Start server in your project
 cd /path/to/project
-c-opencode start
+c-opencode
 
-# Open browser UI
-c-opencode attach
+# Show server URL for browser
+c-opencode web
 ```
 
 ---
@@ -40,66 +40,59 @@ To uninstall, run:
 
 ## Usage
 
-### Basic Commands
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| `start` | Start the OpenCode server |
-| `attach` | Open OpenCode UI in browser |
-| `stop` | Stop the server |
-| `restart` | Restart the server |
-| `status` | Show server status |
-| `logs` | View container logs |
-| `list` | List all OpenCode containers |
-| `worktree` | Create worktree manually |
-| `worktree remove` | Remove worktree |
-| `clean` | Remove container and worktree |
+| `(no args)` | Start server and attach to OpenCode TUI |
+| `web` | Show server URL |
 | `help` | Show help message |
 
-### Start Options
+### Pass-through
 
-| Option | Description |
-|--------|-------------|
-| `-p, --port <port>` | Expose additional container port |
-| `--public` | Bind to 0.0.0.0 (requires `OPENCODE_SERVER_PASSWORD`) |
+Any other arguments are passed to opencode with the `--attach` flag. The server URL is automatically included.
 
-### Global Options
+Examples:
+```bash
+c-opencode run 'add feature'
+c-opencode session list
+c-opencode stats
+c-opencode models
+```
 
-| Option | Description |
-|--------|-------------|
-| `--worktree` | Use git worktree for isolation |
+### Container Management
+
+Use Docker directly to manage containers:
+
+```bash
+docker ps                          # List running containers
+docker logs <container>            # Show logs
+docker stop <container>            # Stop container
+docker rm <container>              # Remove container
+```
 
 ---
 
 ## Examples
 
 ```bash
-# Start server (current directory mounted)
-c-opencode start
+# Attach to OpenCode TUI
+c-opencode
 
-# Start with public access
-c-opencode start --public
+# Show server URL for browser
+c-opencode web
 
-# Expose port 3000 in container
-c-opencode start -p 3000
+# Run opencode non-interactively
+c-opencode run 'add feature'
 
-# Start with git worktree isolation
-c-opencode --worktree start
+# List sessions
+c-opencode session list
 
-# Open browser UI
-c-opencode attach
+# Show usage statistics
+c-opencode stats
 
-# Check server status
-c-opencode status
-
-# View logs
-c-opencode logs
-
-# Stop server
-c-opencode stop
-
-# Clean up (remove container + worktree)
-c-opencode clean
+# List available models
+c-opencode models
 ```
 
 ---
