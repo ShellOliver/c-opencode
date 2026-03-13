@@ -1,0 +1,47 @@
+{
+  "name": "@opencode/docker-wrapper",
+  "version": "1.0.0",
+  "description": "Containerized environment for OpenCode AI coding agent with server/client architecture",
+  "main": "c-opencode.sh",
+  "bin": {
+    "c-opencode": "./c-opencode.sh"
+  },
+  "files": [
+    "c-opencode.sh",
+    "install.sh",
+    "uninstall.sh",
+    "Dockerfile",
+    "bin/",
+    ".opencode/container.yaml.example"
+  ],
+  "scripts": {
+    "install": "./install.sh",
+    "uninstall": "./uninstall.sh"
+  },
+  "keywords": [
+    "opencode",
+    "docker",
+    "container",
+    "ai",
+    "coding",
+    "agent"
+  ],
+  "author": "opencode",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anomalyco/opencode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anomalyco/opencode/issues"
+  },
+  "homepage": "https://github.com/anomalyco/opencode#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ]
+}

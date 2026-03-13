@@ -20,6 +20,117 @@ c-opencode web
 
 ---
 
+## Container Configuration
+
+Create a `.opencode/container.yaml` file to configure port mappings for services running inside the container. This allows you to expose additional ports without editing the Dockerfile.
+
+### Format
+
+```yaml
+ports:
+  - "3000:3000"
+  - "8080:8080"
+  - "127.0.0.1:5000:5000"
+```
+
+### Port Mapping Formats
+
+| Format | Description |
+|---------|-------------|
+| `"3000"` | Expose port 3000 on random host port |
+| `"3000:3000"` | Map host port 3000 to container port 3000 |
+| `"8080:3000"` | Map host port 8080 to container port 3000 |
+| `"127.0.0.1:5000:5000"` | Bind to localhost only |
+
+### Example
+
+```bash
+# Create .opencode directory
+mkdir .opencode
+
+# Create container.yaml
+cat > .opencode/container.yaml <<'EOF'
+ports:
+  - "3000:3000"
+  - "8080:8080"
+  - "127.0.0.1:5000:5000"
+EOF
+
+# Start container (ports will be exposed)
+c-opencode
+```
+
+### Requirements
+
+The `yq` binary (YAML parser) is bundled with this package and automatically installed during setup. No additional dependencies required.
+
+### Metadata
+
+Custom images include labels for easy identification:
+```bash
+docker inspect opencode-<foldername>:latest | jq '.[0].Config.Labels'
+```
+
+**Security Note:** The custom build script runs as `node` user inside container during build time, not on your host system.
+
+---
+
+## Custom Build Scripts
+
+Create a `.opencode/c-opencode-image.sh` file to customize the Docker image for your project. The script runs **inside** the container during the build process, allowing you to:
+
+- Install project-specific dependencies
+- Run build commands
+- Add system tools and packages
+
+### Example: Node.js Project
+
+```bash
+mkdir .opencode
+cat > .opencode/c-opencode-image.sh <<'EOF'
+#!/bin/bash
+set -e
+cd /workspace/project
+npm install
+npm run build
+EOF
+chmod +x .opencode/c-opencode-image.sh
+```
+
+### Example: Python Project
+
+```bash
+mkdir .opencode
+cat > .opencode/c-opencode-image.sh <<'EOF'
+#!/bin/bash
+set -e
+apt-get update && apt-get install -y python3-pip
+cd /workspace/project
+pip install -r requirements.txt
+EOF
+chmod +x .opencode/c-opencode-image.sh
+```
+
+### Rebuilding Custom Images
+
+The custom image is **NOT automatically rebuilt** when you modify `.opencode/c-opencode-image.sh`. You must manually rebuild:
+
+```bash
+c-opencode --rebuild-image
+```
+
+The custom image is named `opencode-<foldername>:latest` (folder name sanitized to be Docker-compatible).
+
+**Metadata:**
+Custom images include labels for easy identification:
+```bash
+docker inspect opencode-<foldername>:latest | jq '.[0].Config.Labels'
+```
+
+**Security Note:** The custom build script runs as the `node` user inside the container during build time, not on your host system.
+
+---
+
 ## Installation
 
 Run the installer to set up the `c-opencode` command:

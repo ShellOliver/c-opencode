@@ -116,6 +116,29 @@ EOF
         exit 1
     fi
 
+    echo "Installing yq (YAML parser)..."
+
+    ARCH=$(uname -m)
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+    case "$ARCH" in
+        x86_64) ARCH="amd64" ;;
+        aarch64|arm64) ARCH="arm64" ;;
+        i386|i686) ARCH="386" ;;
+        *) ARCH="amd64" ;;
+    esac
+
+    YQ_SOURCE="${SCRIPT_DIR}/bin/yq_${OS}_${ARCH}"
+
+    if [ ! -f "$YQ_SOURCE" ]; then
+        echo "Warning: yq binary not found for your platform (${OS}_${ARCH})"
+        echo "container.yaml port configuration will not work."
+    else
+        cp "$YQ_SOURCE" "$LOCAL_BIN/yq"
+        chmod +x "$LOCAL_BIN/yq"
+        echo "yq installed to $LOCAL_BIN/yq"
+    fi
+
     echo "Installation complete!"
     echo "Run 'c-opencode --help' to get started."
 }

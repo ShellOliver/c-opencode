@@ -58,3 +58,104 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Usage:" ]]
 }
+
+@test "sanitize_image_name handles special characters" {
+    result=$(sanitize_image_name "My Project_v2")
+    [ "$result" = "my-project-v2" ]
+
+    result=$(sanitize_image_name "test@dev#123")
+    [ "$result" = "test-dev-123" ]
+
+    result=$(sanitize_image_name "UPPERCASE")
+    [ "$result" = "uppercase" ]
+}
+
+@test "sanitize_image_name handles edge cases" {
+    result=$(sanitize_image_name "  spaces  ")
+    [ "$result" = "spaces" ]
+
+    result=$(sanitize_image_name "---dashes---")
+    [ "$result" = "dashes" ]
+
+    result=$(sanitize_image_name "multiple---dashes")
+    [ "$result" = "multiple-dashes" ]
+
+    result=$(sanitize_image_name "")
+    [ "$result" = "default" ]
+}
+
+@test "get_custom_image_name returns correct format" {
+    cd /tmp || exit 1
+    mkdir -p test_project
+    cd test_project || exit 1
+
+    result=$(get_custom_image_name)
+    [[ "$result" =~ ^opencode-test-project:latest$ ]]
+
+    cd /tmp || exit 1
+    rm -rf test_project
+}
+
+@test "has_custom_build_script returns false when file missing" {
+    cd /tmp || exit 1
+    mkdir -p test_no_script
+    cd test_no_script || exit 1
+
+    run has_custom_build_script
+    [ "$status" -eq 1 ]
+
+    cd /tmp || exit 1
+    rm -rf test_no_script
+}
+
+@test "has_custom_build_script returns true when file exists" {
+    cd /tmp || exit 1
+    mkdir -p test_with_script/.opencode
+    cd test_with_script || exit 1
+
+    touch .opencode/c-opencode-image.sh
+    run has_custom_build_script
+    [ "$status" -eq 0 ]
+
+    cd /tmp || exit 1
+    rm -rf test_with_script
+}
+
+@test "get_target_image returns default when no custom script" {
+    cd /tmp || exit 1
+    mkdir -p test_no_script
+    cd test_no_script || exit 1
+
+    result=$(get_target_image)
+    [ "$result" = "opencode:latest" ]
+
+    cd /tmp || exit 1
+    rm -rf test_no_script
+}
+
+@test "get_yq_binary returns installed path first" {
+    if [ -x "$HOME/.local/bin/yq" ]; then
+        result=$(get_yq_binary)
+        [ "$result" = "$HOME/.local/bin/yq" ]
+    fi
+}
+
+@test "has_yq returns true when yq exists" {
+    if [ -x "$HOME/.local/bin/yq" ]; then
+        run has_yq
+        [ "$status" -eq 0 ]
+    fi
+}
+
+@test "get_port_flags generates correct Docker flags" {
+    result=$(get_port_flags "3000:3000
+8080:8080")
+    [[ "$result" =~ "3000:3000" ]]
+    [[ "$result" =~ "8080:8080" ]]
+    [[ "$result" =~ "127.0.0.1::4096" ]]
+}
+
+@test "get_port_flags includes opencode port even when empty" {
+    result=$(get_port_flags "")
+    [[ "$result" =~ "127.0.0.1::4096" ]]
+}

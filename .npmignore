@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (keep these in npm package)
+# README.md
+# docs
+# CHANGELOG.md
+# LICENSE
+
+# Test files
+tests/
+*.bats
+
+# Logs
+*.log
+logs
+
+# Cache
+.cache
+temp
+tmp
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Planning and implementation files
+TODO.md
+IMPLEMENTATION_PLAN.md
+CONTAINER_YAML_PLAN.md
+IMPLEMENTATION_SUMMARY.md
+
+# Download scripts
+download-yq.sh

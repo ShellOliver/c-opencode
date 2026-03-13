@@ -1,0 +1,21 @@
+# .opencode/container.yaml.example
+# Copy this file to .opencode/container.yaml and configure your ports
+
+# Container name (optional)
+name: my-project
+
+# Port mappings (host:container format)
+# Examples:
+#   "3000"              - Expose port 3000 on random host port
+#   "3000:3000"          - Map host port 3000 to container port 3000
+#   "8080:3000"          - Map host port 8080 to container port 3000
+#   "127.0.0.1:5000:5000" - Bind to localhost only
+ports:
+  - "3000:3000"
+  - "8080:8080"
+  - "127.0.0.1:5000:5000"
+
+# Future extensions (optional)
+# env:
+#   NODE_ENV: development
+#   DEBUG: "true"

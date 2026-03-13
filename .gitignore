@@ -65,9 +65,13 @@ pnpm-lock.yaml
 
 # Config files (using host configs via volume mounts)
 opencode.json
-*.json
 
 # Build artifacts
 out
-bin
 obj
+
+# Allow specific files (exceptions above)
+!package.json
+!bin/
+!bin/*
+
