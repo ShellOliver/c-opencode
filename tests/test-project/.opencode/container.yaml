@@ -1,0 +1,5 @@
+# Test container configuration
+# This config exposes port 3011 for the test server
+
+ports:
+  - "3011:3011"

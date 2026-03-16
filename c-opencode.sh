@@ -243,6 +243,10 @@ LABEL opencode.source-folder="$(basename "$(pwd)")"
 COPY .opencode/c-opencode-image.sh /tmp/build-script.sh
 USER node
 RUN bash /tmp/build-script.sh
+
+# Use custom entrypoint if it exists, otherwise default CMD
+ENTRYPOINT ["/tmp/test-entrypoint.sh"]
+CMD ["opencode", "serve", "--mdns", "--port", "4096"]
 EOF
 
     echo "Building custom image: $image_name"
