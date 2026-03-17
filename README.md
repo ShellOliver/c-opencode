@@ -246,6 +246,34 @@ c-opencode start  # Creates container opencode-<hash2>
 
 ---
 
+## Alternatives
+
+Different sandboxing approaches solve the same fundamental challenge: limiting AI agent access to the host system while maintaining functionality. Each approach offers distinct trade-offs in isolation, resource usage, and performance.
+
+### Docker Sandbox / MicroVM-Based Isolation
+
+MicroVM-based sandboxes (e.g., Firecracker, Docker Sandboxes) provide hardware-level isolation by running each environment in a separate virtual machine with its own kernel. This approach offers security comparable to running code on a dedicated machine. Platforms like AWS Lambda and AWS Fargate use this technology for multi-tenant isolation. The primary trade-offs include higher resource consumption, longer cold start times (~150ms optimized), and increased memory overhead due to running separate kernel instances. This isolation model is ideal for production environments requiring the strongest security boundaries.
+
+### Container-Based Isolation
+
+Container-based sandboxes use Linux namespaces and cgroups to create isolated environments that share the host kernel. This approach balances isolation strength with resource efficiency, offering faster startup times and lower memory consumption compared to microVMs. The c-opencode tool uses this approach, running commands in isolated containers while maintaining access to necessary host resources. Security can be enhanced with seccomp profiles to filter syscalls. This model works well for development workflows where users trust the AI agent but want protection against accidental damage.
+
+### Permission-Based Sandboxing
+
+Permission-based sandboxes leverage operating system security features through a layered architecture that combines kernel-enforced restrictions with interactive approval. Tools like [nono](https://nono.sh) use Landlock (Linux 5.13+) with seccomp-notify, or Seatbelt (macOS), to create an unprivileged sandbox. The architecture consists of two layers: a static kernel-enforced floor (Landlock/Seatbelt) that provides irreversible restrictions, and a dynamic seccomp-notify layer that traps `openat`/`openat2` syscalls and routes them to a trusted supervisor process for interactive approval. The supervisor opens files and injects file descriptors into the untrusted child process, allowing the agent to work transparently without modification. This approach runs entirely unprivileged (no root or CAP_SYS_ADMIN required), provides minimal overhead (3-10 microseconds on file opens), and strong kernel-enforced isolation. The trade-off is the need to share some filesystem metadata for the supervisor to validate requests, and an interactive approval workflow for file access.
+
+### Comparison Summary
+
+| Approach | Isolation Strength | Resource Usage | Startup Time | Use Case |
+|----------|-------------------|----------------|---------------|----------|
+| Docker Sandbox / MicroVM | Strongest (hardware-level) | High (separate kernels) | Slower (~150ms) | Multi-tenant production, untrusted code |
+| Container-Based | Strong (kernel-level) | Moderate (shared kernel) | Fast (<1s) | Development, trusted AI agents |
+| Permission-Based | Strong (kernel-enforced) | Lowest | Fastest (<100ms) | Performance-critical scenarios, interactive approval |
+
+Each approach serves different needs. The choice depends on your threat model, performance requirements, and trust level in the AI agent. Container-based isolation, as implemented by c-opencode, offers a practical balance for most development workflows.
+
+---
+
 ## Container Details
 
 ### Volume Mounts
