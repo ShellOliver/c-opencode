@@ -40,6 +40,59 @@ uninstall() {
     echo "Uninstallation complete."
 }
 
+install_c_yolo_agent() {
+    local agent_file="$SCRIPT_DIR/c-yolo.md"
+    local agents_dir="$HOME/.config/opencode/agents"
+    local config_file="$HOME/.config/opencode/opencode.json"
+    local target_agent="$agents_dir/c-yolo.md"
+
+    if [ ! -f "$agent_file" ]; then
+        echo "Warning: c-yolo.md not found in $SCRIPT_DIR"
+        return 0
+    fi
+
+    mkdir -p "$agents_dir"
+
+    if [ -f "$target_agent" ]; then
+        echo "c-yolo agent already exists at $target_agent"
+    else
+        cp "$agent_file" "$target_agent"
+        echo "Installed c-yolo agent to $target_agent"
+    fi
+
+    if [ -f "$config_file" ]; then
+        if command -v jq &> /dev/null; then
+            if ! jq -e '.agent["c-yolo"]' "$config_file" &> /dev/null; then
+                echo "Adding c-yolo configuration to opencode.json..."
+                local temp_config
+                temp_config=$(mktemp)
+                jq '.agent["c-yolo"] = {
+                    "enabled": false,
+                    "description": "Primary YOLO agent that executes tasks immediately without asking for permissions",
+                    "mode": "primary",
+                    "permission": {
+                        "bash": "allow",
+                        "edit": "allow",
+                        "read": "allow",
+                        "write": "allow",
+                        "webfetch": "allow",
+                        "tavily": "deny"
+                    }
+                }' "$config_file" > "$temp_config"
+                mv "$temp_config" "$config_file"
+                echo "c-yolo agent configuration added (disabled by default)"
+            else
+                echo "c-yolo configuration already exists in opencode.json"
+            fi
+        else
+            echo "Warning: jq not found. Cannot update opencode.json"
+            echo "Please manually add c-yolo configuration with enabled: false"
+        fi
+    else
+        echo "Warning: opencode.json not found at $config_file"
+    fi
+}
+
 install() {
     echo "Installing c-opencode..."
 
@@ -75,14 +128,15 @@ install() {
         CURRENT_TARGET=$(readlink "$INSTALL_PATH")
         if [[ "$CURRENT_TARGET" == "$C_OPEXECUTE_SCRIPT" ]]; then
             echo "Symbolic link is already correctly configured."
-            return 0
         else
             echo "Removing existing symbolic link pointing to: $CURRENT_TARGET"
             rm "$INSTALL_PATH"
         fi
     fi
 
-    ln -s "$C_OPEXECUTE_SCRIPT" "$INSTALL_PATH"
+    if [[ ! -L "$INSTALL_PATH" ]]; then
+        ln -s "$C_OPEXECUTE_SCRIPT" "$INSTALL_PATH"
+    fi
 
     if [[ ! -L "$INSTALL_PATH" ]]; then
         echo "Error: Failed to create symbolic link."
@@ -134,10 +188,17 @@ EOF
         echo "Warning: yq binary not found for your platform (${OS}_${ARCH})"
         echo "container.yaml port configuration will not work."
     else
-        cp "$YQ_SOURCE" "$LOCAL_BIN/yq"
-        chmod +x "$LOCAL_BIN/yq"
-        echo "yq installed to $LOCAL_BIN/yq"
+        if cp "$YQ_SOURCE" "$LOCAL_BIN/yq" 2>/dev/null; then
+            chmod +x "$LOCAL_BIN/yq"
+            echo "yq installed to $LOCAL_BIN/yq"
+        else
+            echo "Warning: Could not install yq to $LOCAL_BIN"
+            echo "Using bundled yq binary instead."
+        fi
     fi
+
+    echo "Installing c-yolo agent..."
+    install_c_yolo_agent
 
     echo "Installation complete!"
     echo "Run 'c-opencode --help' to get started."

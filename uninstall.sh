@@ -36,6 +36,10 @@ uninstall() {
     fi
     
     echo ""
+    echo "Removing c-yolo agent..."
+    remove_c_yolo_agent
+    
+    echo ""
     echo "Cleaning up ~/.bashrc PATH configuration..."
     if [[ -f "$HOME/.bashrc" ]]; then
         if grep -q "# Added by c-opencode installer" "$HOME/.bashrc" 2>/dev/null; then
@@ -50,6 +54,38 @@ uninstall() {
     echo ""
     echo "Uninstallation complete."
     echo "Please restart your shell or run: source ~/.bashrc"
+}
+
+remove_c_yolo_agent() {
+    local agent_file="$HOME/.config/opencode/agents/c-yolo.md"
+    local config_file="$HOME/.config/opencode/opencode.json"
+    
+    if [ -f "$agent_file" ]; then
+        rm "$agent_file"
+        echo "Removed c-yolo agent file: $agent_file"
+    else
+        echo "c-yolo agent file not found (may have been removed already)"
+    fi
+    
+    if [ -f "$config_file" ]; then
+        if command -v jq &> /dev/null; then
+            if jq -e '.agent["c-yolo"]' "$config_file" &> /dev/null; then
+                echo "Removing c-yolo configuration from opencode.json..."
+                local temp_config
+                temp_config=$(mktemp)
+                jq 'del(.agent["c-yolo"])' "$config_file" > "$temp_config"
+                mv "$temp_config" "$config_file"
+                echo "Removed c-yolo configuration from opencode.json"
+            else
+                echo "c-yolo configuration not found in opencode.json"
+            fi
+        else
+            echo "Warning: jq not found. Cannot update opencode.json"
+            echo "Please manually remove c-yolo configuration from opencode.json"
+        fi
+    else
+        echo "opencode.json not found at $config_file"
+    fi
 }
 
 if [[ $# -eq 0 ]]; then
