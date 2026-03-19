@@ -244,8 +244,10 @@ COPY .opencode/c-opencode-image.sh /tmp/build-script.sh
 USER node
 RUN bash /tmp/build-script.sh
 
-# Use custom entrypoint if it exists, otherwise default CMD
-ENTRYPOINT ["/tmp/test-entrypoint.sh"]
+# Clean up build artifacts
+RUN rm -f /tmp/build-script.sh
+
+# Use CMD from base image
 CMD ["opencode", "serve", "--mdns", "--port", "4096"]
 EOF
 
