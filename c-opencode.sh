@@ -457,7 +457,7 @@ main() {
             fi
             
             local server_url="http://127.0.0.1:${port}"
-            opencode "$@" --attach "$server_url" --dir /workspace/project
+            opencode --attach "$server_url" --dir /workspace/project "$@"
             ;;
     esac
 }

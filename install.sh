@@ -75,8 +75,7 @@ install_c_yolo_agent() {
                         "edit": "allow",
                         "read": "allow",
                         "write": "allow",
-                        "webfetch": "allow",
-                        "tavily": "deny"
+                        "webfetch": "allow"
                     }
                 }' "$config_file" > "$temp_config"
                 mv "$temp_config" "$config_file"
