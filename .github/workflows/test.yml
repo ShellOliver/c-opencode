@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  bats-test:
+    name: BATS Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install bats
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Install jq
+        run: |
+          sudo apt-get install -y jq
+
+      - name: Install coreutils (for md5sum on Linux)
+        run: |
+          sudo apt-get install -y coreutils
+
+      - name: Run bats tests
+        run: bats tests/c-opencode.bats

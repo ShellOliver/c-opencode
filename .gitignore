@@ -50,6 +50,7 @@ docker-compose.yaml
 # Documentation
 README.md
 CHANGELOG.md
+TODO.md
 
 # Test files
 test
