@@ -91,7 +91,7 @@ wait_for_container_ready() {
         local status=$(docker inspect --format='{{.State.Status}}' "$container_name" 2>/dev/null || echo "")
         if [ "$status" = "running" ]; then
             local port=$(get_container_port "$container_name")
-            if [ -n "$port" ]; then
+            if [ -n "$port" ] && check_server "127.0.0.1" "$port"; then
                 echo "Container is ready"
                 return 0
             fi
@@ -121,7 +121,7 @@ get_container_by_path_label() {
 check_server() {
     local host=$1
     local port=$2
-    if timeout 2 bash -c "echo > /dev/tcp/${host}/${port}" 2>/dev/null; then
+    if curl -sf --connect-timeout 2 --max-time 3 "http://${host}:${port}/health" > /dev/null 2>&1; then
         return 0
     fi
     return 1
